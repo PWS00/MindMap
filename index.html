@@ -3,20 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generatore Mappe Concettuali da PDF</title>
+    <title>Generatore di Mappe Concettuali da PDF</title>
+    <!-- Link al nostro file di stile -->
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
     <div class="container">
         <header>
-            <h1>MindMap</h1>
-            <p>Carica un documento PDF per generare automaticamente una mappa concettuale in formato immagine.</p>
+            <h1>Mappa Concettuale AI</h1>
+            <p>Carica un documento PDF per generare automaticamente una mappa concettuale.</p>
         </header>
 
         <main>
             <div class="upload-section">
+                <!-- Input nascosto per il caricamento file -->
                 <input type="file" id="pdf-upload" accept=".pdf" hidden>
+                
+                <!-- Bottone visibile per l'upload -->
                 <button id="upload-button">
                     <span class="icon">📄</span>
                     <span>Seleziona un file PDF...</span>
@@ -24,19 +28,23 @@
                 <p id="file-name" class="file-name-display"></p>
             </div>
 
+            <!-- Bottone per avviare la generazione, inizialmente disabilitato -->
             <button id="generate-button" disabled>Genera Mappa</button>
 
+            <!-- Contenitore per il risultato (loader, mappa o errore) -->
             <div id="result-container" class="result-container">
-                <!-- Qui apparirà la mappa/un messaggio di errore -->
+                <!-- Contenuto generato da JavaScript -->
             </div>
         </main>
 
         <footer>
-            <p>Powered by Walter</p>
+            <p>Powered by Gemini & Mermaid.js</p>
         </footer>
     </div>
 
-    <!-- Il nostro script per la logica -->
+    <!-- Includiamo la libreria Mermaid.js per il rendering del grafico -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <!-- Il nostro script per tutta la logica del front-end -->
     <script src="/static/script.js"></script>
 </body>
 </html>
