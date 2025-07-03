@@ -1,5 +1,9 @@
+// Questo codice gestisce la logica del front-end
 document.addEventListener('DOMContentLoaded', () => {
-    // Seleziona gli elementi principali dell'interfaccia
+    // Inizializza la libreria Mermaid.js, ma le dice di non avviarsi subito
+    mermaid.initialize({ startOnLoad: false });
+
+    // Seleziona gli elementi HTML con cui interagiremo
     const uploadInput = document.getElementById('pdf-upload');
     const uploadButton = document.getElementById('upload-button');
     const generateButton = document.getElementById('generate-button');
@@ -7,25 +11,25 @@ document.addEventListener('DOMContentLoaded', () => {
     const resultContainer = document.getElementById('result-container');
     const uploadSection = document.querySelector('.upload-section');
 
-    let selectedFile = null;
+    let selectedFile = null; // Variabile per memorizzare il file scelto dall'utente
 
-    // --- Gestione dell'Upload ---
+    // --- Gestione dell'Upload (Click e Drag & Drop) ---
 
-    // Apre la finestra di dialogo per la selezione del file
+    // Quando si clicca il bottone, si attiva l'input nascosto
     uploadButton.addEventListener('click', () => {
         uploadInput.click();
     });
 
-    // Gestisce il file selezionato dall'utente
+    // Quando un file viene scelto tramite la finestra di dialogo
     uploadInput.addEventListener('change', () => {
         if (uploadInput.files.length > 0) {
             handleFile(uploadInput.files[0]);
         }
     });
 
-    // --- Gestione del Drag & Drop ---
+    // Gestione del trascinamento del file sull'area di upload
     uploadSection.addEventListener('dragover', (e) => {
-        e.preventDefault(); // Impedisce il comportamento di default del browser
+        e.preventDefault(); // Necessario per permettere il 'drop'
         uploadSection.classList.add('dragover');
     });
 
@@ -41,11 +45,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Funzione unica per gestire il file, sia da click che da drop
     function handleFile(file) {
         if (file && file.type === 'application/pdf') {
             selectedFile = file;
             fileNameDisplay.textContent = `File selezionato: ${file.name}`;
-            generateButton.disabled = false; // Abilita il bottone di generazione
+            generateButton.disabled = false; // Abilita il bottone "Genera Mappa"
         } else {
             alert('Per favore, seleziona un file in formato PDF.');
         }
@@ -59,32 +64,28 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Mostra un indicatore di caricamento
-        showLoading();
+        showLoading(); // Mostra l'animazione di caricamento
 
-        // Crea un oggetto FormData per inviare il file
         const formData = new FormData();
         formData.append('file', selectedFile);
 
         try {
-            // Effettua la chiamata POST all'API del nostro back-end
+            // Chiama la nostra API Python
             const response = await fetch('/api/generate', {
                 method: 'POST',
                 body: formData,
             });
 
+            const data = await response.json(); // Ora ci aspettiamo una risposta JSON
+
             if (response.ok) {
-                // Se la risposta è OK, ci aspettiamo un'immagine
-                const imageBlob = await response.blob();
-                const imageUrl = URL.createObjectURL(imageBlob);
-                displayImage(imageUrl);
+                // Se la risposta è positiva, passiamo il codice Mermaid alla funzione di rendering
+                await displayMermaidDiagram(data.mermaid_code);
             } else {
-                // Se c'è un errore, ci aspettiamo un JSON con il messaggio
-                const errorData = await response.json();
-                displayError(errorData.error || 'Si è verificato un errore sconosciuto.');
+                // Altrimenti, mostriamo l'errore restituito dal server
+                displayError(data.error || 'Si è verificato un errore sconosciuto.');
             }
         } catch (error) {
-            // Gestisce errori di rete o altri problemi
             displayError('Errore di connessione con il server.');
             console.error('Errore:', error);
         }
@@ -96,8 +97,18 @@ document.addEventListener('DOMContentLoaded', () => {
         resultContainer.innerHTML = '<div class="loader"></div>';
     }
 
-    function displayImage(url) {
-        resultContainer.innerHTML = `<img src="${url}" alt="Mappa concettuale generata">`;
+    // QUESTA È LA FUNZIONE CHIAVE AGGIORNATA
+    async function displayMermaidDiagram(mermaidCode) {
+        try {
+            // Usiamo l'API di Mermaid.js per renderizzare il codice di testo in un'immagine SVG
+            const { svg } = await mermaid.render('graphDiv', mermaidCode);
+            
+            // Inseriamo l'SVG generato direttamente nel nostro contenitore dei risultati
+            resultContainer.innerHTML = svg;
+        } catch (error) {
+            console.error("Errore durante il rendering di Mermaid:", error);
+            displayError("Errore nella sintassi del diagramma generato. Il modello AI potrebbe aver restituito un codice non valido. Riprova.");
+        }
     }
 
     function displayError(message) {
