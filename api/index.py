@@ -1,56 +1,46 @@
 # File: api/index.py
 
-# Importiamo le librerie necessarie per il server web, la gestione dei file,
-# l'AI di Google e la chiamata al servizio di rendering delle immagini.
 import os
-import fitz  # PyMuPDF
+import fitz
 import google.generativeai as genai
-from flask import Flask, request, Response, jsonify
+from flask import Flask, request, jsonify
 import time
-import requests # Per chiamare l'API di Kroki.io
 
-# --- 1. Setup dell'applicazione Flask ---
-# Questa è la base della nostra web app.
 app = Flask(__name__)
 
-# --- 2. Configurazione sicura della Chiave API ---
-# Sostituisce la logica dei "Segreti" di Colab.
-try:
-    # os.getenv() è il modo standard per leggere le Variabili d'Ambiente su un server.
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if api_key:
-        genai.configure(api_key=api_key)
-    else:
-        # Questo messaggio apparirà nei log di Vercel se la chiave non è impostata.
-        print("ATTENZIONE: La variabile d'ambiente GOOGLE_API_KEY non è stata trovata.")
-except Exception as e:
-    print(f"Errore durante la configurazione della chiave API: {e}")
+# --- 1. Lettura sicura della Chiave API ---
+# Leggiamo la chiave API una sola volta all'avvio.
+api_key = os.getenv("GOOGLE_API_KEY")
 
-# --- 3. Le Tue Funzioni Logiche (Adattate per il Web) ---
-
-def estrai_testo_da_pdf(pdf_stream) -> str:
-    """
-    Estrae il testo da un flusso di dati PDF ricevuto da un upload web.
-    Non usa più un percorso di file locale.
-    """
+# --- 2. Configurazione dell'API di Google ---
+# Configuriamo l'API solo se la chiave è stata trovata.
+if api_key:
     try:
-        # fitz.open() può leggere direttamente i dati binari del file.
-        with fitz.open(stream=pdf_stream, filetype="pdf") as doc:
-            testo = "".join(page.get_text() for page in doc)
-        return testo
+        genai.configure(api_key=api_key)
+        print("Chiave API di Google configurata con successo.")
     except Exception as e:
-        print(f"Errore durante l'estrazione del testo dal PDF: {e}")
+        print(f"Errore durante la configurazione dell'API Key: {e}")
+        api_key = None # Se la configurazione fallisce, annulliamo la chiave.
+else:
+    print("ATTENZIONE: La variabile d'ambiente GOOGLE_API_KEY non è stata trovata.")
+
+# --- Funzioni Logiche ---
+
+def estrai_testo_da_pdf(pdf_stream):
+    try:
+        with fitz.open(stream=pdf_stream, filetype="pdf") as doc:
+            return "".join(page.get_text() for page in doc)
+    except Exception as e:
+        print(f"Errore estrazione testo: {e}")
         return ""
 
-def crea_codice_mermaid(testo_input: str, modello: str = "gemini-1.5-flash") -> str:
-    """
-    Analizza il testo e genera il codice Mermaid.
-    Questa funzione è quasi identica a quella di Colab.
-    """
-    if not genai.api_key:
-        return "graph TD\n  A[Errore Configurazione] --> B(La chiave API di Google non è configurata sul server.)"
+def crea_codice_mermaid(testo_input: str):
+    # --- NUOVO CONTROLLO ---
+    # Ora controlliamo se la nostra variabile 'api_key' è valida.
+    if not api_key:
+        return "graph TD\n  A[Errore di Configurazione] --> B(La chiave API di Google non è impostata correttamente sul server.)"
     
-    model = genai.GenerativeModel(modello)
+    model = genai.GenerativeModel("gemini-1.5-flash")
     prompt = f"""
 Crea una mappa concettuale di RIEPILOGO e ad alto livello. La mappa deve essere chiara e contenere solo i concetti più importanti, ignorando i dettagli minuti.
 
@@ -84,38 +74,12 @@ Testo da analizzare:
         codice_mermaid = response.text.replace("```mermaid", "").replace("```", "").strip()
         return codice_mermaid
     except Exception as e:
-        return f"graph TD\n  A[Errore API] --> B(Si è verificato un problema: {e})"
+        print(f"Errore durante la chiamata a Gemini: {e}")
+        return f"graph TD\n  A[Errore API] --> B(Si è verificato un problema con l'AI: {e})"
 
-def genera_png_da_mermaid(codice_mermaid: str, tema: str = 'forest') -> bytes:
-    """
-    Genera un'immagine PNG dal codice Mermaid usando l'API di Kroki.io.
-    Questa funzione replica la logica della tua funzione 'creare_mappa_mermaid'.
-    """
-    print("Avvio generazione PNG tramite Kroki.io...")
-    url_kroki = "https://kroki.io/mermaid/png"
-    payload = {
-        "diagram_source": codice_mermaid,
-        "diagram_options": {"theme": tema}
-    }
-    headers = {'Content-Type': 'application/json'}
-
-    try:
-        response = requests.post(url_kroki, headers=headers, json=payload, timeout=30) # Aggiunto timeout
-        response.raise_for_status()  # Lancia un'eccezione per errori HTTP
-        print("Immagine PNG ricevuta con successo da Kroki.")
-        return response.content  # Restituisce i dati binari dell'immagine
-    except requests.exceptions.RequestException as e:
-        print(f"Errore durante la chiamata a Kroki.io: {e}")
-        # Se Kroki restituisce un errore, potremmo provare a mostrarlo
-        if e.response is not None:
-            print(f"Dettaglio errore da Kroki: {e.response.text}")
-        raise  # Rilanciamo l'eccezione per farla gestire dalla route principale
-
-# --- 4. La "Route" Principale dell'API ---
-# Questo è l'indirizzo web (endpoint) che il nostro front-end chiamerà.
+# --- API Route (invariata) ---
 @app.route("/api/generate", methods=["POST"])
 def handle_map_generation():
-    # Controlla se un file è stato inviato nella richiesta
     if 'file' not in request.files:
         return jsonify({"error": "Nessun file fornito."}), 400
 
@@ -124,29 +88,24 @@ def handle_map_generation():
         return jsonify({"error": "File non selezionato."}), 400
 
     try:
-        # Eseguiamo l'intero flusso
         testo_estratto = estrai_testo_da_pdf(pdf_file.read())
         if not testo_estratto:
-            return jsonify({"error": "Impossibile estrarre il testo dal PDF."}), 500
+            return jsonify({"error": "Impossibile estrarre testo dal PDF."}), 500
 
-        # Logica di tentativi multipli per la generazione del codice
+        # Logica di tentativi
         codice_mermaid_risultante = None
-        for i in range(3): # 3 tentativi
+        for i in range(3):
             codice_temp = crea_codice_mermaid(testo_estratto)
             if "Errore" not in codice_temp and codice_temp.strip().startswith("graph TD"):
                 codice_mermaid_risultante = codice_temp
                 break
-            time.sleep(1) # Piccola pausa tra i tentativi
+            time.sleep(1)
 
-        if not codice_mermaid_risultante:
+        if codice_mermaid_risultante:
+            return jsonify({"mermaid_code": codice_mermaid_risultante})
+        else:
             return jsonify({"error": "Il modello AI non è riuscito a generare un codice valido."}), 500
 
-        # Generazione dell'immagine PNG
-        png_image_bytes = genera_png_da_mermaid(codice_mermaid_risultante)
-
-        # Restituisce l'immagine PNG come risposta
-        return Response(png_image_bytes, mimetype='image/png')
-
     except Exception as e:
-        print(f"Errore critico durante il processo: {e}")
-        return jsonify({"error": "Si è verificato un errore imprevisto sul server."}), 500
+        print(f"Errore critico: {e}")
+        return jsonify({"error": "Errore imprevisto sul server."}), 500
