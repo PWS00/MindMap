@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generatore Mappe Concettuali da PDF</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>MindMap</h1>
+            <p>Carica un documento PDF per generare automaticamente una mappa concettuale in formato immagine.</p>
+        </header>
+
+        <main>
+            <div class="upload-section">
+                <input type="file" id="pdf-upload" accept=".pdf" hidden>
+                <button id="upload-button">
+                    <span class="icon">📄</span>
+                    <span>Seleziona un file PDF...</span>
+                </button>
+                <p id="file-name" class="file-name-display"></p>
+            </div>
+
+            <button id="generate-button" disabled>Genera Mappa</button>
+
+            <div id="result-container" class="result-container">
+                <!-- Qui apparirà la mappa/un messaggio di errore -->
+            </div>
+        </main>
+
+        <footer>
+            <p>Powered by Walter</p>
+        </footer>
+    </div>
+
+    <!-- Il nostro script per la logica -->
+    <script src="/static/script.js"></script>
+</body>
+</html>
